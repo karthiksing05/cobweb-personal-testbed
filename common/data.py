@@ -17,39 +17,66 @@ import torch
 from torch.utils.data import DataLoader, Subset
 from torchvision import datasets, transforms
 
-# Human-readable class names. MNIST is just the digits; FashionMNIST has the
-# canonical Zalando label names.
-CLASS_NAMES = {
-    "MNIST": [str(i) for i in range(10)],
-    "FashionMNIST": [
-        "T-shirt/top",
-        "Trouser",
-        "Pullover",
-        "Dress",
-        "Coat",
-        "Sandal",
-        "Shirt",
-        "Sneaker",
-        "Bag",
-        "Ankle boot",
-    ],
+# Per-dataset metadata: class names, spatial image shape, and channel count.
+# MNIST/FashionMNIST are 28x28 grayscale; CIFAR-10 is 32x32 RGB.
+DATASET_INFO = {
+    "MNIST": {
+        "class_names": [str(i) for i in range(10)],
+        "img_shape": (28, 28),
+        "channels": 1,
+        "norm": ((0.1307,), (0.3081,)),
+    },
+    "FashionMNIST": {
+        "class_names": [
+            "T-shirt/top", "Trouser", "Pullover", "Dress", "Coat",
+            "Sandal", "Shirt", "Sneaker", "Bag", "Ankle boot",
+        ],
+        "img_shape": (28, 28),
+        "channels": 1,
+        "norm": ((0.2860,), (0.3530,)),
+    },
+    "KMNIST": {
+        # Kuzushiji-MNIST: 28x28 grayscale cursive Japanese hiragana, 10 classes.
+        # A harder drop-in replacement for MNIST. Classes are labeled by the
+        # romaji of the representative hiragana for each of the 10 rows.
+        "class_names": ["o", "ki", "su", "tsu", "na", "ha", "ma", "ya", "re", "wo"],
+        "img_shape": (28, 28),
+        "channels": 1,
+        "norm": ((0.1904,), (0.3475,)),
+    },
+    "CIFAR10": {
+        "class_names": [
+            "airplane", "automobile", "bird", "cat", "deer",
+            "dog", "frog", "horse", "ship", "truck",
+        ],
+        "img_shape": (32, 32),
+        "channels": 3,
+        "norm": ((0.4914, 0.4822, 0.4465), (0.2470, 0.2435, 0.2616)),
+    },
 }
 
-IMG_SHAPE = (28, 28)
+# Back-compat alias.
+CLASS_NAMES = {k: v["class_names"] for k, v in DATASET_INFO.items()}
 NUM_CLASSES = 10
 
 
 @dataclass
 class Dataset:
-    """A loaded, flattened dataset split."""
+    """A loaded, flattened dataset split.
+
+    Images are flattened in torchvision's C-order: for a ``C x H x W`` tensor the
+    vector is channel-major (all of channel 0, then channel 1, ...), so it is
+    reshaped back with ``vec.reshape(channels, H, W)``.
+    """
 
     name: str
-    X_train: np.ndarray  # (n_train, 784) float32
+    X_train: np.ndarray  # (n_train, C*H*W) float32
     y_train: np.ndarray  # (n_train,) int64
-    X_test: np.ndarray  # (n_test, 784) float32
+    X_test: np.ndarray  # (n_test, C*H*W) float32
     y_test: np.ndarray  # (n_test,) int64
     class_names: list[str]
-    img_shape: tuple[int, int] = IMG_SHAPE
+    img_shape: tuple[int, int] = (28, 28)
+    channels: int = 1
     num_classes: int = NUM_CLASSES
 
 
@@ -72,7 +99,7 @@ def load_dataset(
     """Load and flatten an MNIST-style dataset.
 
     Args:
-        name: ``"MNIST"`` or ``"FashionMNIST"``.
+        name: ``"MNIST"``, ``"FashionMNIST"``, or ``"CIFAR10"``.
         root: directory under which torchvision stores the raw data.
         train_size: number of (shuffled) training images to keep. Use a value
             ``>= 60000`` to keep the full training set.
@@ -83,15 +110,14 @@ def load_dataset(
             cleanly as images.
         download: download the dataset if it is not present.
     """
-    if name not in CLASS_NAMES:
-        raise ValueError(f"Unknown dataset {name!r}; expected one of {list(CLASS_NAMES)}")
+    if name not in DATASET_INFO:
+        raise ValueError(f"Unknown dataset {name!r}; expected one of {list(DATASET_INFO)}")
+    info = DATASET_INFO[name]
 
     dataset_class = getattr(datasets, name)
     tfm = [transforms.ToTensor()]
     if normalize:
-        # Standard channel statistics for each dataset.
-        stats = {"MNIST": ((0.1307,), (0.3081,)), "FashionMNIST": ((0.2860,), (0.3530,))}
-        tfm.append(transforms.Normalize(*stats[name]))
+        tfm.append(transforms.Normalize(*info["norm"]))
     transform = transforms.Compose(tfm)
 
     ds_tr = dataset_class(f"{root}/{name}", train=True, download=download, transform=transform)
@@ -119,5 +145,7 @@ def load_dataset(
         y_train=y_train,
         X_test=X_test,
         y_test=y_test,
-        class_names=CLASS_NAMES[name],
+        class_names=info["class_names"],
+        img_shape=info["img_shape"],
+        channels=info["channels"],
     )

@@ -135,7 +135,7 @@ def run_experiment(
 
     viz.plot_mean_concepts_by_level(
         infos, ds.class_names, ds.img_shape,
-        figs / "02_mean_concepts_by_level.png", title,
+        figs / "02_mean_concepts_by_level.png", title, channels=ds.channels,
     )
     # Class composition of the 2nd and 3rd levels (the coarse clusters).
     viz.plot_level_composition(
@@ -148,7 +148,7 @@ def run_experiment(
     basic = tu.basic_level_nodes(tree, comp, num_classes)
     viz.plot_basic_level_nodes(
         basic, ds.class_names, ds.img_shape,
-        figs / "04_basic_level_nodes.png", title,
+        figs / "04_basic_level_nodes.png", title, channels=ds.channels,
     )
 
     # 5. Custom concept-tree node-link diagram -------------------------------
@@ -157,7 +157,8 @@ def run_experiment(
     if export_tree:
         tree_viz.plot_concept_tree(
             tree, comp, ds.class_names, ds.img_shape,
-            figs / "07_concept_tree.png", title, keepalive=infos,
+            figs / "07_concept_tree.png", title, channels=ds.channels,
+            basic_ids={b.nid for b in basic}, keepalive=infos,
         )
 
     # 6. Summary -------------------------------------------------------------

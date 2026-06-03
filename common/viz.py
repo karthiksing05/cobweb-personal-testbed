@@ -28,6 +28,29 @@ def _short(name: str, n: int = 10) -> str:
     return name if len(name) <= n else name[: n - 1] + "…"
 
 
+def mean_to_img(mean, img_shape, channels: int = 1):
+    """Reshape a node mean vector into a displayable image.
+
+    Grayscale → ``(H, W)``; RGB → ``(H, W, 3)`` (torchvision flattens channel-
+    major, so we reshape to ``(C, H, W)`` then move channels last). Values are
+    clipped to ``[0, 1]`` for display.
+    """
+    mean = np.asarray(mean, dtype=np.float32)
+    if channels == 1:
+        return np.clip(mean.reshape(img_shape), 0, 1)
+    img = mean.reshape((channels, img_shape[0], img_shape[1])).transpose(1, 2, 0)
+    return np.clip(img, 0, 1)
+
+
+def show_concept(ax, mean, img_shape, channels: int = 1):
+    """imshow a node mean as a concept image (gray or RGB) onto ``ax``."""
+    img = mean_to_img(mean, img_shape, channels)
+    if channels == 1:
+        ax.imshow(img, cmap="gray", vmin=0, vmax=1)
+    else:
+        ax.imshow(img)
+
+
 # --------------------------------------------------------------------------- #
 # 1. Ground-truth class distribution of the dataset
 # --------------------------------------------------------------------------- #
@@ -62,6 +85,7 @@ def plot_mean_concepts_by_level(
     img_shape,
     path,
     title,
+    channels: int = 1,
     max_levels: int = 6,
     max_nodes_per_level: int = 10,
 ):
@@ -92,7 +116,7 @@ def plot_mean_concepts_by_level(
             ax.set_yticks([])
             if c < len(nodes):
                 info = nodes[c]
-                ax.imshow(info.mean.reshape(img_shape), cmap="gray", vmin=0, vmax=1)
+                show_concept(ax, info.mean, img_shape, channels)
                 dom = info.dominant_class
                 lbl = _short(class_names[dom], 9) if dom >= 0 else "?"
                 ax.set_title(
@@ -130,6 +154,7 @@ def plot_basic_level_nodes(
     img_shape,
     path,
     title,
+    channels: int = 1,
     max_nodes: int = 16,
 ):
     """For each basic-level concept: its mean image and class-composition bar."""
@@ -159,7 +184,7 @@ def plot_basic_level_nodes(
             ax_bar.axis("off")
             continue
         info = nodes[idx]
-        ax_img.imshow(info.mean.reshape(img_shape), cmap="gray", vmin=0, vmax=1)
+        show_concept(ax_img, info.mean, img_shape, channels)
         dom = info.dominant_class
         cu = getattr(info, "cu", float("nan"))
         ax_img.set_title(
