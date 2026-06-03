@@ -1,0 +1,14 @@
+# Continuous Cobweb is provided by the `cobweb` package built from the local
+# `cobweb-private/` checkout. Install it once with:
+#
+#     pip install ./cobweb-private
+#
+# (it needs Eigen3 — `brew install eigen` on macOS, `apt install libeigen3-dev`
+# on Ubuntu — before building.)
+#
+# The remaining dependencies for this testbed:
+numpy>=1.24
+torch>=2.0
+torchvision>=0.15
+matplotlib>=3.6
+tqdm>=4.60

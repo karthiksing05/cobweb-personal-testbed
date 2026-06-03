@@ -1,0 +1,7 @@
+__pycache__/
+*.pyc
+results/
+datasets/
+cobweb-private
+.DS_Store
+.vscode/

@@ -1,0 +1,3 @@
+"""
+For random ideas!
+"""
