@@ -1,8 +1,8 @@
-# Continuous Cobweb — Vision Testbed (MNIST, FashionMNIST, KMNIST & CIFAR-10)
+# Continuous Cobweb — Vision Testbed (MNIST, FashionMNIST, KMNIST, ColorMNIST & CIFAR-10)
 
 A testbed for running **Continuous Cobweb** (`CobwebContinuousTree` from the
-`cobweb` package) on the MNIST, FashionMNIST, KMNIST, and CIFAR-10 image
-datasets, and visualizing the concept hierarchy it learns.
+`cobweb` package) on the MNIST, FashionMNIST, KMNIST, ColorMNIST, and CIFAR-10
+image datasets, and visualizing the concept hierarchy it learns.
 
 Each image is flattened into a raw-pixel vector in `[0, 1]` (784 dims for the
 28×28 grayscale sets, 3072 dims for 32×32 RGB CIFAR-10), so every pixel is a
@@ -21,11 +21,11 @@ For each dataset the runner writes a set of figures plus a `summary.json` into
 | `01_class_distribution.png` | Ground-truth class sizes of the train/test splits. |
 | `02_mean_concepts_by_level.png` | The **mean concept** (reshaped mean image) of every node, one row per level of the hierarchy — root blur → broad clusters → clean class prototypes. Annotated with support count, dominant class, and purity. |
 | `03_level1_composition.png`, `03_level2_composition.png` | Stacked bars of the **ground-truth class composition** of each concept at levels 1 and 2 (how the true classes split across the coarse clusters). |
-| `04_basic_level_nodes.png` | The **basic-level concepts** — the node along each root→leaf path that maximizes category utility — each with its mean image and class-composition bar. |
-| `05_learning_curve.png` | Test accuracy vs. # training instances, plus tree growth (# nodes and max depth). |
-| `06_confusion_matrix.png` | Final per-class confusion matrix and accuracy. |
-| `07_concept_tree.png` | **Custom Cobweb tree visualization** — a top-down node-link diagram where every node is its mean-concept thumbnail, edges connect parent→children, each border is colored by the node's dominant ground-truth class, and **basic-level concepts are highlighted with a gold halo and a ★ tag**. |
-| `summary.json` | Key numbers: final accuracy, node/leaf counts, depth, basic-level stats, the full learning curve. |
+| `04_learning_curve.png` | Test accuracy vs. # training instances, plus tree growth (# nodes and max depth). |
+| `05_confusion_matrix.png` | Final per-class confusion matrix and accuracy. |
+| `06_concept_tree.png` | **Custom Cobweb tree visualization** — a top-down node-link diagram where every node is its mean-concept thumbnail, edges connect parent→children, and each border is colored by the node's dominant ground-truth class. |
+| `07_subtree_d3_*.png` | **Lower-level subtrees** — the top-level tree stops at depth 3, so these render the 6 largest concepts at depth 3, each as its own node-link diagram spanning **depths 3 → 6**, exposing the finer structure the main tree cuts off. |
+| `summary.json` | Key numbers: final accuracy, node/leaf counts, depth, the full learning curve. |
 
 ## Layout
 
@@ -33,7 +33,7 @@ For each dataset the runner writes a set of figures plus a `summary.json` into
 Cobweb-Testbed/
 ├── common/                  # dataset-independent code, shared by all runners
 │   ├── data.py              #   load + flatten MNIST/FashionMNIST/CIFAR-10 (1- or 3-channel)
-│   ├── tree_utils.py        #   build/traverse tree, class composition, basic level
+│   ├── tree_utils.py        #   build/traverse tree, class composition
 │   ├── viz.py               #   matplotlib figures (gray + RGB concept images)
 │   ├── tree_viz.py          #   custom concept-tree node-link diagram
 │   ├── experiment.py        #   end-to-end run_experiment()
@@ -46,6 +46,9 @@ Cobweb-Testbed/
 │   └── results/
 ├── KMNIST/
 │   ├── run_kmnist.py        #   → KMNIST/results/ (cursive hiragana, harder MNIST)
+│   └── results/
+├── ColorMNIST/
+│   ├── run_colormnist.py    #   → ColorMNIST/results/ (synthetic 32×32 palette-colored MNIST)
 │   └── results/
 ├── CIFAR10/
 │   ├── run_cifar10.py       #   → CIFAR10/results/
@@ -72,6 +75,7 @@ pip install -r requirements.txt
 python MNIST/run_mnist.py
 python FashionMNIST/run_fashionmnist.py
 python KMNIST/run_kmnist.py
+python ColorMNIST/run_colormnist.py            # default random fg+bg; --color-mode fg|class for variants
 python CIFAR10/run_cifar10.py
 ```
 
@@ -87,6 +91,7 @@ Useful flags (same for all scripts):
 | `--normalize` | off | standardize pixels (leave off for readable mean images) |
 | `--insert-only` | off | faster insert-only Cobweb variant |
 | `--no-tree` | off | skip rendering the concept-tree node-link diagram |
+| `--color-mode` | `fg_bg` | ColorMNIST only: `fg_bg` (random palette foreground + background), `fg` (random palette foreground on black), or `class` (foreground tied to digit) |
 
 ```bash
 # Example: full MNIST training set, larger mixture for prediction.
@@ -103,19 +108,16 @@ python MNIST/run_mnist.py --train-size 60000 --max-nodes-predict 200
   routed to its leaf (`tree.get_leaf`) and its true class is tallied up the parent
   chain. A node's tally is exactly the count of instances flowing through it,
   broken down by class.
-- **Basic level** — for each root→leaf path we pick the node maximizing the
-  single-concept category-utility score
-  `CU(n) = P(n) · Σ_c [ P(c|n)² − P(c)² ]`,
-  which trades off frequency against class predictiveness. The union of these
-  winners is the basic-level cut (the classic Cobweb notion: neither the overly
-  general root nor the overly specific leaves).
 - **Concept tree** — `common/tree_viz.py` is a custom, self-contained renderer
   (no browser/D3 dependency) built for this architecture: it lays out the tree
   with a tidy-tree algorithm, draws each node as its mean-image thumbnail with a
   border colored by dominant class, and auto-prunes (descend to `max_depth`,
   keep the largest `max_children` per node, drop tiny nodes) so the diagram
   stays readable at any dataset size. Truncated siblings are flagged with a
-  `+k` marker rather than dropped silently.
+  `+k` marker rather than dropped silently. The same renderer also draws
+  **lower-level subtrees** (`plot_subtrees`): rooted at an arbitrary node and
+  labeled with absolute depths, it renders the largest depth-3 concepts down to
+  depth 6.
 
 ## Results (5,000 train / 5,000 test, raw pixels, `seed=123`)
 
@@ -124,6 +126,7 @@ python MNIST/run_mnist.py --train-size 60000 --max-nodes-predict 200
 | MNIST | **0.92** | 0.10 | ~7,200 | 12 |
 | FashionMNIST | **0.78** | 0.10 | ~7,200 | 12 |
 | KMNIST | **0.77** | 0.10 | ~7,000 | 13 |
+| ColorMNIST (4×4 palette fg+bg) | **0.79** | 0.10 | ~7,300 | 13 |
 | CIFAR-10 | **0.26** | 0.10 | ~6,900 | 14 |
 
 **How it does on each:**
@@ -137,6 +140,16 @@ python MNIST/run_mnist.py --train-size 60000 --max-nodes-predict 200
   but cursive Japanese hiragana). Strokes are far more variable than digits, so
   the same raw-pixel approach lands well below MNIST and roughly at FashionMNIST
   level — a good "harder grayscale" stress test of the hierarchy.
+- **ColorMNIST, palette foreground + background (default `fg_bg`)** — synthetic
+  3-channel MNIST: each 28×28 digit is padded into a 32×32 canvas and colorized
+  as `bg + intensity·(fg−bg)`, with the foreground and background each drawn from
+  a fixed 4-color palette (4 muted digit colors × 4 dark background colors). Both
+  color and background are nuisances, but — unlike fully-random color — they take
+  only 16 discrete combinations, so Cobweb cleanly separates the color/background
+  factors and still recovers the digit within each, landing near FashionMNIST
+  level. The `02_mean_concepts` / `06_concept_tree` figures show the tree first
+  splitting by background/foreground color, then by digit shape. (Variants: `fg` =
+  random palette foreground on black; `class` = foreground tied to the digit.)
 - **CIFAR-10 (~26%, well above the 10% chance baseline but weak in absolute
   terms)** — this is the expected outcome and the interesting one. With **no
   learned features**, Cobweb clusters CIFAR-10 mainly by **dominant color /

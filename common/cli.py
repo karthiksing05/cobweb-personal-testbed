@@ -32,6 +32,10 @@ def main(dataset_name: str, out_dir: str) -> None:
                    help="use the faster insert-only Cobweb variant")
     p.add_argument("--no-tree", action="store_true",
                    help="skip rendering the concept-tree node-link diagram")
+    p.add_argument("--color-mode", choices=["fg_bg", "fg", "class"], default="fg_bg",
+                   help="ColorMNIST only: 'fg_bg' (random foreground + background), "
+                        "'fg' (random foreground on black), or 'class' (color "
+                        "fixed per digit)")
     args = p.parse_args()
 
     run_experiment(
@@ -45,4 +49,5 @@ def main(dataset_name: str, out_dir: str) -> None:
         normalize=args.normalize,
         export_tree=not args.no_tree,
         insert_only=args.insert_only,
+        color_mode=args.color_mode,
     )

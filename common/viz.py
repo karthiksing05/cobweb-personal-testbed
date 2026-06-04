@@ -146,71 +146,7 @@ def plot_mean_concepts_by_level(
 
 
 # --------------------------------------------------------------------------- #
-# 3. Basic-level nodes: mean image + class composition
-# --------------------------------------------------------------------------- #
-def plot_basic_level_nodes(
-    basic_infos: list[NodeInfo],
-    class_names,
-    img_shape,
-    path,
-    title,
-    channels: int = 1,
-    max_nodes: int = 16,
-):
-    """For each basic-level concept: its mean image and class-composition bar."""
-    num_classes = len(class_names)
-    colors = class_colors(num_classes)
-    nodes = basic_infos[:max_nodes]
-    ncols = min(4, len(nodes)) or 1
-    nrows = int(np.ceil(len(nodes) / ncols))
-
-    # Two rows per concept: image on top, composition bar below.
-    fig, axes = plt.subplots(
-        nrows * 2, ncols, figsize=(2.6 * ncols, 3.0 * nrows),
-        gridspec_kw={"height_ratios": [3, 2] * nrows},
-    )
-    axes = np.atleast_2d(axes)
-
-    for idx in range(nrows * ncols):
-        r_img = (idx // ncols) * 2
-        r_bar = r_img + 1
-        c = idx % ncols
-        ax_img = axes[r_img, c]
-        ax_bar = axes[r_bar, c]
-        ax_img.set_xticks([])
-        ax_img.set_yticks([])
-        if idx >= len(nodes):
-            ax_img.axis("off")
-            ax_bar.axis("off")
-            continue
-        info = nodes[idx]
-        show_concept(ax_img, info.mean, img_shape, channels)
-        dom = info.dominant_class
-        cu = getattr(info, "cu", float("nan"))
-        ax_img.set_title(
-            f"depth {info.depth} · n={int(info.count)}\n"
-            f"{_short(class_names[dom], 11)} ({info.purity:.0%}) · CU={cu:.3f}",
-            fontsize=8,
-        )
-        comp = info.composition
-        ax_bar.bar(range(num_classes), comp, color=colors)
-        ax_bar.set_xticks(range(num_classes))
-        ax_bar.set_xticklabels(range(num_classes), fontsize=6)
-        ax_bar.set_yticks([])
-        ax_bar.margins(x=0.01)
-
-    fig.suptitle(
-        f"{title} — basic-level concepts (mean image + ground-truth class composition)",
-        fontsize=13,
-    )
-    fig.tight_layout(rect=(0, 0, 1, 0.96))
-    fig.savefig(path, dpi=130)
-    plt.close(fig)
-    return path
-
-
-# --------------------------------------------------------------------------- #
-# 4. Stacked class composition of the top-level concepts
+# 3. Stacked class composition of the top-level concepts
 # --------------------------------------------------------------------------- #
 def plot_level_composition(
     infos: list[NodeInfo],
@@ -251,7 +187,7 @@ def plot_level_composition(
 
 
 # --------------------------------------------------------------------------- #
-# 5. Learning curves
+# 4. Learning curves
 # --------------------------------------------------------------------------- #
 def plot_learning_curve(history: dict, path, title):
     """Accuracy + tree-growth curves vs. number of training instances.
@@ -290,7 +226,7 @@ def plot_learning_curve(history: dict, path, title):
 
 
 # --------------------------------------------------------------------------- #
-# 6. Confusion matrix
+# 5. Confusion matrix
 # --------------------------------------------------------------------------- #
 def plot_confusion_matrix(y_true, y_pred, class_names, path, title):
     num_classes = len(class_names)

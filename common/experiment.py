@@ -8,10 +8,9 @@ A single call to :func:`run_experiment` will:
 3. After training, reconstruct per-node ground-truth class composition.
 4. Produce all the analysis figures:
      - mean concepts at each level of the hierarchy,
-     - basic-level concepts (mean image + class composition),
      - class composition of the top concept levels,
      - learning curve, confusion matrix.
-5. Optionally export the interactive D3 HTML tree viz.
+5. Render the custom concept-tree node-link diagram and lower-level subtrees.
 6. Write a ``summary.json`` with the key numbers.
 """
 
@@ -53,6 +52,7 @@ def run_experiment(
     normalize: bool = False,
     export_tree: bool = True,
     insert_only: bool = False,
+    color_mode: str = "fg_bg",
 ) -> dict:
     """Run the full Continuous Cobweb testbed for one dataset.
 
@@ -77,7 +77,7 @@ def run_experiment(
     print(f"[{dataset_name}] loading data (train={train_size}, test={test_size})")
     ds = data_mod.load_dataset(
         dataset_name, train_size=train_size, test_size=test_size,
-        seed=seed, normalize=normalize,
+        seed=seed, normalize=normalize, color_mode=color_mode,
     )
     num_classes = ds.num_classes
     size = ds.X_train.shape[1]
@@ -115,7 +115,7 @@ def run_experiment(
         print(f"[{dataset_name}]  n={ck:>6}  acc={acc:.3f}  "
               f"nodes={stats['num_nodes']}  depth={stats['max_depth']}")
 
-    viz.plot_learning_curve(history, figs / "05_learning_curve.png", title)
+    viz.plot_learning_curve(history, figs / "04_learning_curve.png", title)
 
     # 3. Final evaluation + confusion matrix ---------------------------------
     print(f"[{dataset_name}] final evaluation on {ds.X_test.shape[0]} test images")
@@ -125,7 +125,7 @@ def run_experiment(
     final_acc = float((final_preds == ds.y_test).mean())
     viz.plot_confusion_matrix(
         ds.y_test, final_preds, ds.class_names,
-        figs / "06_confusion_matrix.png", title,
+        figs / "05_confusion_matrix.png", title,
     )
 
     # 4. Hierarchy analysis --------------------------------------------------
@@ -145,25 +145,26 @@ def run_experiment(
         infos, 2, ds.class_names, figs / "03_level2_composition.png", title,
     )
 
-    basic = tu.basic_level_nodes(tree, comp, num_classes)
-    viz.plot_basic_level_nodes(
-        basic, ds.class_names, ds.img_shape,
-        figs / "04_basic_level_nodes.png", title, channels=ds.channels,
-    )
-
     # 5. Custom concept-tree node-link diagram -------------------------------
     # ``comp`` is keyed by node-wrapper id(); ``infos`` (from walk above) keeps
     # those wrappers alive so the id lookups inside the renderer stay valid.
     if export_tree:
         tree_viz.plot_concept_tree(
             tree, comp, ds.class_names, ds.img_shape,
-            figs / "07_concept_tree.png", title, channels=ds.channels,
-            basic_ids={b.nid for b in basic}, keepalive=infos,
+            figs / "06_concept_tree.png", title, channels=ds.channels,
+            keepalive=infos,
         )
+        # Lower-level subtrees: the largest concepts at depth 3, each rendered
+        # down to depth 6, to expose structure the top-level tree cuts off.
+        sub_paths = tree_viz.plot_subtrees(
+            tree, comp, ds.class_names, ds.img_shape, figs, title, infos,
+            channels=ds.channels, start_depth=3, span=3, top_k=6,
+            keepalive=infos,
+        )
+        print(f"[{dataset_name}] wrote {len(sub_paths)} depth-3→6 subtree figures")
 
     # 6. Summary -------------------------------------------------------------
     stats = tu.tree_stats(tree)
-    basic_purity = float(np.mean([b.purity for b in basic])) if basic else 0.0
     summary = {
         "dataset": dataset_name,
         "train_size": int(train_size),
@@ -174,8 +175,6 @@ def run_experiment(
         "num_leaves": stats["num_leaves"],
         "max_depth": stats["max_depth"],
         "root_branching": stats["branching_root"],
-        "num_basic_level_concepts": len(basic),
-        "mean_basic_level_purity": basic_purity,
         "learning_curve": history,
         "runtime_seconds": round(time.time() - t_start, 1),
     }
@@ -183,7 +182,6 @@ def run_experiment(
         json.dump(summary, f, indent=2)
 
     print(f"[{dataset_name}] DONE  acc={final_acc:.3f}  "
-          f"nodes={stats['num_nodes']}  basic-level={len(basic)}  "
-          f"({summary['runtime_seconds']}s)")
+          f"nodes={stats['num_nodes']}  ({summary['runtime_seconds']}s)")
     print(f"[{dataset_name}] figures + summary in {out}")
     return summary
